@@ -1,0 +1,124 @@
+#define CHUNK 153600
+#define MAXSEG_64K
+/* included headers and what is expected from each */
+#include <stdio.h>      /* fflush(), fprintf(), fputs(), getchar(), putc(), */
+                        /* puts(), printf(), vasprintf(), stderr, EOF, NULL,
+                           SEEK_END, size_t, off_t */
+#include <string.h>     /* memset(), memchr(), memcpy(), strcmp(), */
+                        /* strcpy(), strncpy(), strlen(), strcat() */
+#include <errno.h>      /* errno, EEXIST */
+#include <signal.h>     /* signal(), SIGINT */
+
+#include <sys/types.h>  /* ssize_t */
+#include "zlib.h"       /* deflateInit2(), deflateReset(), deflate(), */
+                        /* deflateEnd(), deflateSetDictionary(), crc32(),
+                           Z_DEFAULT_COMPRESSION, Z_DEFAULT_STRATEGY,
+                           Z_DEFLATED, Z_NO_FLUSH, Z_NULL, Z_OK,
+                           Z_SYNC_FLUSH, z_stream */
+#include "../zipinfo.h"
+#include <spu_mfcio.h>
+#include <assert.h>
+
+#define PUT4(a,b) (*(a)=(b),(a)[1]=(b)>>8,(a)[2]=(b)>>16,(a)[3]=(b)>>24)
+/* largest power of 2 that fits in an unsigned int -- used to limit requests
+   to zlib functions that use unsigned int lengths */
+#define MAX ((((unsigned)-1) >> 1) + 1)
+
+control_block cb __attribute__ ((aligned (128)));
+unsigned char data[CHUNK] __attribute__ ((aligned (128)));
+
+int main(unsigned long long speid, addr64 argp, addr64 envp){
+	puts("started");       
+        int i;
+
+	mfc_get(&cb, argp.ull, sizeof(cb), 31, 0, 0);
+        mfc_write_tag_mask(1<<31);
+        mfc_read_tag_status_all();
+	
+	mfc_get(data, cb.address.ui[1], 16384, 20, 0, 0);
+	mfc_write_tag_mask(1<<20);
+	mfc_read_tag_status_all();
+	
+	//begin zipping portion
+	unsigned long crc;
+	unsigned long tot = (unsigned long)16384;
+	int ret, flush;
+    	unsigned have;
+    	z_stream strm;
+	int level = 6;
+	//write gzip header
+	out[0] = 31;
+	out[1] = 139;
+    	out[2] = 8;                    /* deflate */
+    	out[3] = 8;
+    	out[4] = 0;
+	out[5] = 0;
+	out[6] = 0;
+	out[7] = 0;
+    	out[8] = 0;
+    	out[9] = 3;                    /* unix */
+	out[10] = 't';
+	out[11] = 'e';
+	out[12] = 's';
+	out[13] = 't';
+	out[14] = 'f';
+	out[15] = 'i';
+	out[16] = 'l';
+	out[17] = 'e';
+	out[18] = 0;
+		
+    	strm.zalloc = Z_NULL;
+    	strm.zfree = Z_NULL;
+    	strm.opaque = Z_NULL;
+	crc = crc32(0L, Z_NULL, 0);
+    	ret = deflateInit(&strm, 6);
+    	(void) deflateReset(&strm);
+	if (ret != Z_OK){
+		printf("error %d\n", ret);
+        	return ret;
+	}
+    	/* compress until end of file */
+	
+    	do {
+        	strm.avail_in = 16384;
+        	flush = Z_FINISH;
+        	strm.next_in = data;
+		crc = crc32(crc, strm.next_in, strm.avail_in);
+
+		
+        	/* run deflate() on input until output buffer not full, finish
+           	compression if all of source has been read in */
+        	do {
+            	strm.avail_out = CHUNK;
+            	strm.next_out = &out[19];
+            	ret = deflate(&strm, flush);    /* no bad return value */
+            	assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+            	have = CHUNK - strm.avail_out;
+        	} while (strm.avail_out == 0);
+        	assert(strm.avail_in == 0);     /* all input will be used */
+
+        	/* done when last data in file processed */
+    	} while (flush != Z_FINISH);
+   	assert(ret == Z_STREAM_END);        /* stream will be complete */
+
+    	/* clean up and return */
+	//(void)deflateEnd(&strm);
+	PUT4(&out[strm.total_out+15], crc);
+	PUT4(&out[strm.total_out+19], tot);
+	while((i = spu_readch(SPU_RdInMbox)) != 1);
+
+	spu_writech(SPU_WrOutMbox, 5);	
+	spu_writech(SPU_WrOutMbox, (strm.total_out + 23));
+
+	while ((i = spu_readch(SPU_RdInMbox)) != 2) ;	
+
+	mfc_put(out, cb.address.ui[1], 16384, 20, 0, 0);
+	mfc_write_tag_mask(1<<20);
+	mfc_read_tag_status_all();
+	
+	puts("i'm actually finishing!");
+        return 0;
+}
+
+	
+

@@ -1,0 +1,609 @@
+#include "../zipinfo.h"
+#include <sched.h>
+#include <libspe2-types.h>
+#include <libspe2.h>
+#include <pthread.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <errno.h>
+#include "zlib.h"
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <string.h>
+#include <unistd.h>
+#include <assert.h>
+#include <fcntl.h>
+
+#define PUT4(a,b) (*(a)=(b),(a)[1]=(b)>>8,(a)[2]=(b)>>16,(a)[3]=(b)>>24)
+#define SPU_Mbox_Stat 0x04014
+#define SPU_In_Mbox 0x0400C
+
+typedef struct ppu_pthread_data {
+    spe_context_ptr_t speid;
+    pthread_t pthread;
+	unsigned int entry;
+	unsigned int flags;
+    void *argp;
+    void *envp;
+    spe_stop_info_t stopinfo;
+} ppu_pthread_data_t;
+
+void *ppu_pthread_function(void *arg) {
+	//reference to the struct above
+    ppu_pthread_data_t *datap = (ppu_pthread_data_t *)arg;
+	unsigned int entry = SPE_DEFAULT_ENTRY;
+	//setup a reference to the problem state area
+	//this will be used to message the spe
+
+    int rc;
+    if ((rc = spe_context_run(datap->speid, &entry, 0, datap->argp, NULL, NULL)) < 0) {
+       fprintf (stderr, "Failed spe_context_run(rc=%d, errno=%d, strerror=%s)\n", rc, errno, strerror(errno));
+        exit (1);
+    }
+    pthread_exit(NULL);
+}
+
+/* there are the number of controllers represented by SPU_THREADS*/
+control_block cb[8] __attribute__ ((aligned (128)));
+
+/* program handle for spe program */
+extern spe_program_handle_t mypigz15;
+
+/* these are the handles returned by "spe_context_create" and "pthread_create" */
+ppu_pthread_data_t datas[8];
+
+//status of the spu threads
+int status[8];
+
+//use char since we are reading data in a byte at a time
+// we are allocating SPU_THREADS for the control block
+//you want to align the data that you are going to send on the buffer
+unsigned char data[8][98304] __attribute__ ((aligned (128)));
+
+//standard main function with argc-argument count and argv-argument value
+int main(int argc, char **argv){
+	unsigned long outputSize = 0;
+	//counting variables
+    int i,j;
+	//run context
+	int rc;     
+
+	//stores the size of the return and done
+	int mb;
+	int mbs;
+	void * mbsp_addr;
+
+	//stores the size of the return and done
+	int size, done;
+	void *size_addr;
+	void *done_addr;
+
+	unsigned long crc;
+	void *crc_addr;
+
+	//stores the number of iterations
+	int iterations = 0;
+
+	//stores the leftover that needs to be run on the ppe
+	int leftover = 0;
+	
+	//size of the file
+	unsigned long long filesize;
+
+	//the output to the buffer that holds the file name
+	char outname[256];
+
+	//pointer that will handle the input stream
+	FILE *in;
+
+	//pointer that will handle the output stream
+	FILE *out;
+
+	//pointer that handles whether or not the file exists
+	FILE *exists;
+
+	//the character input
+	char userInput = ' ';	
+	int SPU_THREADS;
+	unsigned int EFFICIENCY_SIZE;
+	int file_name_location = 0;
+
+	if(argc > 2 && argv[1][1]=='j')
+	{
+		if((argv[1][2]-'0') > 8 || (argv[1][2]-'0') < 1)
+		{
+			SPU_THREADS = 8;
+		}
+		else
+		{
+			SPU_THREADS = (argv[1][2]-'0');
+		}
+		file_name_location = 2;
+	}
+	else if(argc != 2){
+		printf("\nError! Invalid input.\n\nUsage: ./czip <filename>\n\n");
+		return 1;
+	}	
+	else
+	{
+		SPU_THREADS = 8;
+		file_name_location = 1;
+	}
+	EFFICIENCY_SIZE = (SPU_THREADS*65536);
+	
+	//check in the next group for the file name
+	if(access(argv[file_name_location], R_OK))
+	{
+		printf("File does not exist!\n");
+		return 1;	
+	}
+
+	//Open the files for reading and writing
+	//this sets the input stream to in
+	if((in = fopen(argv[file_name_location], "rb")) == NULL){
+		printf("\nError opening file!\n\n");
+		return 1;
+	}
+
+	//print output to buffer and get the number of chars written
+	//outname will be the name of the file to be compressed
+	sprintf(outname,"%s.gz", argv[file_name_location]);
+
+	//find out whether or not file exists	
+	if((exists = fopen(outname, "r")) != NULL){
+		fclose(exists);
+		printf("\n File %s already exists, overwrite? (y or n)", outname);
+		userInput = getchar();
+	
+		if(userInput == 'y'){
+		}
+		else{ 
+			printf("\nInvalid command.  No file written. Exiting!\n\n");
+			return 0;
+		}
+	}
+
+	//open out for writing to append (a) and write bytes (b)
+	if((out = fopen(outname, "wb")) == NULL){
+		fclose(out);
+		printf("\nError! Unable to compress. Error writing to file.\n\n");
+		return 1;
+	}
+
+	//Get the file size by setting the position indicator at the end of the file.. 
+	fseek(in, 0, SEEK_END);
+
+	//and reading the value of the position
+	filesize = ftello(in);
+
+	//reset the position of the indicator back at the beginning
+	fseek(in, 0, SEEK_SET);	
+
+	//write the header
+	unsigned char header_data[32];
+	
+	header_data[0] = 31;
+	header_data[1] = 139;
+	header_data[2] = 8;	
+	header_data[3] = 8;	
+	header_data[4] = 0;	
+	header_data[5] = 0;	
+	header_data[6] = 0;	
+	header_data[7] = 0;	
+	header_data[8] = 0;	
+	header_data[9] = 3;	
+	j=10;
+	int backslash = 0;
+	char *p;
+	for(p = argv[file_name_location], i = 0; *p != 0; p++, i++)
+	{
+		if(*p == '/')
+		{
+			backslash = i;
+		}
+	}
+	backslash++;
+	for(p=&argv[file_name_location][backslash]; *p != 0 && j<31; p++, j++)
+	{
+		header_data[j] = *p;
+	}
+	header_data[j] = 0;
+	j++;
+	outputSize = j;
+	fwrite(&header_data[0], sizeof(unsigned char), outputSize, out);
+
+	unsigned long crcTotal = crc32(0L, Z_NULL, 0);
+
+	//file is empty if the file size is 0 so close the file
+	if(filesize == 0)
+	{
+		fclose(out);
+		printf("\nFile is empty! Nothing to compress. Exiting.\n\n");
+		
+		//delete the files written to the buffer
+		unlink(outname);
+		return 0;
+	}
+
+	//Only use SPEs if file is greater than efficiency size
+	if(filesize >= EFFICIENCY_SIZE){
+		//Fill the buffer using the input stream 
+		//the maximum safe amount of memory to use is 64k 
+		//allowing for extra space
+		for(i = 0; i < SPU_THREADS; i++)
+		{
+			fread(&data[i][0], sizeof(unsigned char), 65536, in);	 
+		}
+
+		//Fill the Control Block with the (unsigned int) data address
+	   	for(i = 0; i < SPU_THREADS; i++)
+		{
+	   		cb[i].address.ui[1] = (unsigned int) &data[i][0];
+	   		cb[i].id = i;
+		}
+
+		// allocate SPE tasks 
+		for (i = 0; i < SPU_THREADS; i++)
+		{
+			// Create context 
+			if(i == 0)
+			{
+				if ((datas[i].speid = spe_context_create(SPE_CFG_SIGNOTIFY1_OR | SPE_MAP_PS, NULL)) == NULL)	
+		        	{
+		        		fprintf (stderr, "Failed spe_context_create(errno=%d strerror=%s)\n", errno, strerror(errno));
+		        		exit (3+i);
+		        	}
+			}			
+			else
+			{
+				if ((datas[i].speid = spe_context_create(SPE_MAP_PS, NULL)) == NULL)	
+			        {
+					fprintf (stderr, "Failed spe_context_create(errno=%d strerror=%s)\n", errno, strerror(errno));
+		        		exit (3+i);
+		        	}
+			}
+			if ((datas[i].speid = spe_context_create(SPE_CFG_SIGNOTIFY1_OR | SPE_MAP_PS, NULL)) == NULL)
+		        {
+				fprintf (stderr, "Failed spe_context_create(errno=%d strerror=%s)\n", errno, strerror(errno));
+	        		exit (3+i);
+	        	}
+			// Load program 
+			if ((rc = spe_program_load (datas[i].speid, &mypigz15)) != 0)
+		        {
+				fprintf (stderr, "Failed spe_program_load(errno=%d strerror=%s)\n", errno, strerror(errno));
+		        	exit (3+i);
+		        }
+			// Initialize data 
+			datas[i].argp = (unsigned long long *) &cb[i];
+			// Create thread 
+			if ((rc = pthread_create (&datas[i].pthread, NULL, &ppu_pthread_function, &datas[i])) != 0)
+		        {
+				fprintf (stderr, "Failed pthread_create(errno=%d strerror=%s)\n", errno, strerror(errno));
+				exit (3+i);
+		        }
+		}
+
+		unsigned long total_size = 0;
+		unsigned long total_iterations = 0;
+		if(filesize > 2147483647)
+		{
+			total_iterations = 2147483647/65536;
+			total_iterations++;
+			total_iterations *= filesize/2147483647;
+			total_iterations += (filesize%2147483647)/65536;
+			total_iterations += ((filesize%2147483647)/65536)? 1: 0;
+			total_iterations = total_iterations/6;
+			total_iterations += (total_iterations%6)? 1:0;
+		}
+		else
+		{
+			//Determine number of iterations and do the work
+			iterations = filesize / EFFICIENCY_SIZE;
+			
+			//leftover space
+			leftover = filesize % EFFICIENCY_SIZE;
+			
+			if(leftover)
+				total_iterations = iterations+1;
+			else
+				total_iterations = iterations;
+		}
+		int chunk_size[total_iterations][SPU_THREADS];
+		if(filesize > 2147483647)
+		{
+			unsigned long long max = 0, over = 0, over_over = 0;			
+			total_size = 0;
+			
+			unsigned long long tempsize = filesize, variable_distance = 2147483647; 
+
+			while(tempsize>0)
+			{
+				i = max;				
+				max = max + (variable_distance/EFFICIENCY_SIZE);
+				for(i=i; i<max; i++)
+				{
+					for(j=0; j < SPU_THREADS; j++)
+					{
+						chunk_size[i][j]=65536;
+					}
+				}
+				over = (variable_distance % EFFICIENCY_SIZE)/65536;
+				over_over = (variable_distance % EFFICIENCY_SIZE) % 65536;
+				for(i=0; i < over; i++)
+				{
+					chunk_size[max][i]=65536;
+				}
+				chunk_size[max][over] = over_over;
+				if(tempsize<2147483647)
+					tempsize -= tempsize;
+				else{
+					tempsize -= 2147483647;
+				}
+				if(!tempsize)
+				{
+					for(i=over+1; i < SPU_THREADS; i++)
+					{
+						chunk_size[max][i]=0;
+					}
+				}
+				else if(tempsize>=2147483647)
+				{
+					variable_distance = 2147483647;
+					for(i=over+1; i < SPU_THREADS; i++)
+					{
+						chunk_size[max][i]=65536;
+						variable_distance -= 65536;
+					}
+				}
+				else
+				{
+					variable_distance = tempsize;
+					if(variable_distance/((SPU_THREADS-over+1)*65536))
+					{
+						for(i=over+1; i < SPU_THREADS; i++)
+						{
+							chunk_size[max][i]=65536;
+							variable_distance -= 65536;
+						}
+					}
+					else if(variable_distance>=65536)
+					{
+						for(i=over+1; i < SPU_THREADS && variable_distance>=65536; i++)
+						{
+							chunk_size[max][i]=65536;
+							variable_distance -= 65536;
+						}
+						if(variable_distance)
+						{
+							chunk_size[max][i]=variable_distance;
+							i++;
+						}
+						for(i=i; i < SPU_THREADS; i++)
+						{
+							chunk_size[max][i]=0;
+						}
+					}
+					else
+					{
+						chunk_size[max][over+1] = variable_distance;
+						for(i=over+2; i < SPU_THREADS; i++)
+						{
+							chunk_size[max][i]=0;
+						}
+					}
+				}
+				max++;
+			}
+			iterations = max;
+		}
+		else
+		{
+			for(i=0; i<iterations; i++)
+			{
+				for(j=0;j<SPU_THREADS; j++)
+				{
+					chunk_size[i][j] = 65536; 
+				}
+			}
+			if(leftover)
+			{
+				int max = leftover/65536;
+				int over = leftover % 65536;
+				for(i=0; i < max; i++)
+				{
+					chunk_size[iterations][i]=65536;
+				}
+				chunk_size[iterations][max] = over;
+				for(i=max+1; i < SPU_THREADS; i++)
+				{
+					chunk_size[iterations][i] = 0;
+				}
+				iterations++;
+			}
+		}
+
+		total_size = 0;
+
+		for(i =0; i<iterations; i++)
+		{
+			//Give SPEs the start signal
+			for(j = 0; j<SPU_THREADS && chunk_size[i][j]!=0; j++)
+			{
+				//check to see if we are done reading the initial data
+				if(i >= 1)
+				{
+					//load new data to compress					
+					fread(&data[j][0], sizeof(unsigned char), chunk_size[i][j], in);		
+				}
+				
+				//sends a predetermined signal of 20 to mypigz15, which will start execution of mypigz15
+				mbs = j;
+				mbsp_addr= (unsigned long long *)&mbs;
+				mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+
+				//sends a predetermined signal of 20 to mypigz15, which will start execution of mypigz15
+				mbs = chunk_size[i][j];
+				mbsp_addr= (unsigned long long *)&mbs;
+				mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+			}
+			for(j = 0; j<SPU_THREADS && chunk_size[i][j]!=0; j++){
+				//Communicate with SPEs to get the data back
+				//sends a signal indicating the spe we are on 
+				mbs = j;
+				mbsp_addr=(unsigned long long *)&mbs;
+				mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+				//reads the signal and stores it in size
+				//wait till it is equal to 12 
+				size_addr=(unsigned long long *)&size;
+				do{
+					spe_out_mbox_read(datas[j].speid, size_addr, 1);
+				}while(size != 0x12);
+				//wait till it is not equal to 12
+				do
+				{
+					spe_out_mbox_read(datas[j].speid, size_addr, 1);
+				}
+				while(size == 0x12);
+				//pause...				
+				//time to send signal of 9 to tell process to continue			
+				mbs = 0x9;				
+				mbsp_addr=(unsigned long long *)&mbs;
+				mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+				//wait for a signal of 10, which means we are done
+				done_addr=(unsigned long long *)&done;
+				do{
+					spe_out_mbox_read(datas[j].speid, done_addr, 1);
+				}
+				while(done != 0x10);
+				//Write compressed data to the out stream
+				fwrite(&data[j][0], sizeof(unsigned char), size, out);
+				
+				//time to send signal of 9 to tell process to continue			
+				mbs = 0x32;
+				mbsp_addr=(unsigned long long *)&mbs;
+				mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+
+				crc = 0x10;
+				crc_addr=(unsigned long long *)&crc;
+				do{
+					spe_out_mbox_read(datas[j].speid, crc_addr, 1);
+				}
+				while(crc == 0x10);
+
+				crcTotal = crc32_combine(crcTotal, crc, chunk_size[i][j]);
+
+				total_size += chunk_size[i][j];
+				if(chunk_size[i][j]<65536)
+				{
+					unsigned char footer_data[8];
+					PUT4(&footer_data[0], crcTotal);
+					PUT4(&footer_data[4], (unsigned long) total_size);
+					fwrite(footer_data, sizeof(unsigned char), 8, out);
+					total_size = 0;
+					crcTotal = crc32(0L, Z_NULL, 0);
+					if(i+1<iterations)
+						fwrite(&header_data[0], sizeof(unsigned char), outputSize, out);
+				}
+				//tell the spe that we are done writing the data with a signal of 21
+				mbs = 0x21;				
+				mbsp_addr=(unsigned long long *)&mbs;
+				mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+				//check to see if we are on the last iteration
+				if(i+1 == iterations || chunk_size[i+1][j]==0)
+				{
+					//send close signal of 23 for last run 
+					mbs = 0x23;
+					mbsp_addr=(unsigned long long *)&mbs;
+					mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+				}
+				else
+				{
+					//send close signal of 22 to simbolize not 
+					mbs = 0x22;
+					mbsp_addr=(unsigned long long *)&mbs;
+					mb = spe_in_mbox_write(datas[j].speid, mbsp_addr, 1, SPE_MBOX_ANY_NONBLOCKING);
+				}
+				size = 0;
+			}
+		}
+		// wait for SPEs to all finish 
+  		for (i=0; i<SPU_THREADS; ++i)
+		{
+      		// Join thread 
+      		if ((rc = pthread_join (datas[i].pthread, NULL)) != 0)
+        	{
+        		fprintf (stderr, "Failed pthread_join(rc=%d, errno=%d strerror=%s)\n", rc, errno, strerror(errno));
+        		exit (1);
+        	}
+      		// Destroy context 
+      		if ((rc = spe_context_destroy (datas[i].speid)) != 0)
+        	{
+        		fprintf (stderr, "Failed spe_context_destroy(rc=%d, errno=%d strerror=%s)\n", rc, errno, strerror(errno));
+        		exit (1);
+        	}
+		}
+		leftover = 0;
+	}
+	else
+	{
+		//this is setting the value that was set in the if for operations that ran on the spe		
+		leftover=filesize % EFFICIENCY_SIZE;
+	}
+
+	//header stuff
+	//PPE handles small files and leftover data
+	if(leftover){
+		unsigned long crc;
+		unsigned char lo_data[2*leftover];
+		fread(&lo_data[leftover], sizeof(unsigned char), leftover, in);
+		
+		 //Begin zipping portion
+                int ret, flush;
+                unsigned have;
+                z_stream strm;
+
+                strm.zalloc = Z_NULL;
+                strm.zfree = Z_NULL;
+                strm.opaque = Z_NULL;
+
+                crc = crc32(0L, Z_NULL, 0);
+
+                ret = deflateInit(&strm, 6);
+                if (ret != Z_OK){
+                        printf("error %d\n", ret);
+                        return ret;
+                }
+                // compress until end of file 
+
+                do {
+                        strm.avail_in = leftover;
+                        flush = Z_FINISH;
+                        strm.next_in = &lo_data[leftover];
+                        crc = crc32(crc, strm.next_in, strm.avail_in);
+						crcTotal = crc32_combine(crcTotal, crc, leftover);				
+                        // run deflate() on input until output buffer not full, finish
+                        //compression if all of source has been read in 
+                        do {
+                                strm.avail_out = (2*leftover);
+                                strm.next_out = &lo_data[0];
+                                ret = deflate(&strm, flush);    //no bad return value 
+                                assert(ret != Z_STREAM_ERROR);  //state not clobbered 
+                                have = leftover - strm.avail_out;
+                        } while (strm.avail_out == 0);
+                        assert(strm.avail_in == 0);     //all input will be used 
+                } while (flush != Z_FINISH);
+                assert(ret == Z_STREAM_END);        //stream will be complete 
+
+		fwrite(lo_data, sizeof(unsigned char), strm.total_out-4, out);
+		unsigned char footer_data[8];
+		PUT4(&footer_data[0], crcTotal);
+		PUT4(&footer_data[4], (unsigned long) filesize);
+		fwrite(footer_data, sizeof(unsigned char), 8, out);
+	}
+
+	fclose(out);
+	fclose(in);
+        return 0;
+
+}
+

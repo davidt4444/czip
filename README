@@ -1,0 +1,36 @@
+***************************************************************************
+*																		  *
+*								CZIP									  *
+*																		  *
+*							   V. 1.1									  *
+*							July 25, 2007								  *
+*																		  *
+*							 Written by									  *
+*			 Mark Adler, Andy Anderson and David Thigpen				  *
+*																		  *
+*					Based on pigz by Mark Adler							  *
+*																		  *
+*			Send Email to the maintainer David Thigpen at				  *
+*						dathigpe@olemiss.edu							  *
+*																		  *
+* Up to date Copies of czip can be found at www.aggregatedatasystems.com  *
+*																		  *
+***************************************************************************
+
+
+Czip comes with a copy of all of the necessary files from zlib plus zipinfo.h, 
+mypigz15.c, ppezip.c and a makefiles for both the ppe and the spe. To setup 
+czip, all you have to do is cd into the ppu directory and type make. It will 
+create a czip executable in that directory. Once the file is compiled you can 
+move the file into the /user/local/bin or /bin directories and then you will 
+be able to just type in czip, the -jn flag where n is the number of spes you 
+wish to use, and the file path of the file that you want to compress. If you 
+don't enter any options, 8 spes will be assumed.
+
+There is also a man page included. To set that up all you have to do is move 
+the file czip.1.gz to the folder /usr/share/man/man1/ and your done.
+
+Version 1.1 is fully functioning. It has some enhancements that put the file 
+name in the header and the correct file size of the compressed file at the 
+end. In this version, there is only one header and trailer. The file compression 
+ratio is also improved as a result.

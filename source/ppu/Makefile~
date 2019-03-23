@@ -1,0 +1,28 @@
+################################
+#       Subdirectories
+################################
+
+DIRS := ../spu
+
+###############################
+#       Target
+###############################
+
+PROGRAM_ppu:= ppezip
+
+###############################
+#       Local Defines
+###############################
+
+IMPORTS := ../spu/mypigz15.a -lspe2
+
+INSTALL_DIR = $(SDKBIN)
+INSTALL_FILES = $(PROGRAM_ppu)
+CFLAGS_gcc = "-O -DMAX_WBITS=12 -DMAX_MEM_LEVEL=7"
+
+###############################
+#       make.footer
+###############################
+
+include ../../../../make.footer
+

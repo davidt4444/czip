@@ -1,0 +1,129 @@
+ppezip.o: In function `main':
+ppezip.c:(.text+0x2bc): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x2dc): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x318): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x330): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x368): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x380): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x3b8): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x3d0): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x408): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x420): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x454): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x468): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x4cc): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x4e0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x4f4): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x508): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x51c): undefined reference to `spe_in_mbox_write'
+ppezip.o:ppezip.c:(.text+0x530): more undefined references to `spe_in_mbox_write' follow
+ppezip.o: In function `main':
+ppezip.c:(.text+0x568): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x580): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x5a0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x5b0): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x5e0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x5f8): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x640): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x664): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x688): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x6ac): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x6d0): undefined reference to `spe_context_destroy'
+ppezip.o:ppezip.c:(.text+0x6f4): more undefined references to `spe_context_destroy' follow
+ppezip.o: In function `main':
+ppezip.c:(.text+0x994): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0xb38): undefined reference to `spe_in_mbox_write'
+ppezip.o: In function `ppu_pthread_function':
+ppezip.c:(.text+0xbcc): undefined reference to `spe_context_run'
+collect2: ld returned 1 exit status
+make: *** [ppezip] Error 1
+make[1]: Entering directory `/home/dthigpe/prototype/myCode/czip/source/spu'
+make[1]: Nothing to be done for `all'.
+make[1]: Leaving directory `/home/dthigpe/prototype/myCode/czip/source/spu'
+/usr/bin/ppu32-gcc -o ppezip  adler32.o compress.o crc32.o deflate.o ppezip.o trees.o zutil.o      -L/home/dthigpe/prototype/sysroot/usr/lib -m32 -Wl,-m,elf32ppc -R/opt/ibm/cell-sdk/prototype/sysroot/usr/lib ../spu/mypigz15.a -lspe
+ppezip.o: In function `main':
+ppezip.c:(.text+0x2bc): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x2dc): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x318): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x330): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x368): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x380): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x3b8): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x3d0): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x408): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x420): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x454): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x468): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x4cc): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x4e0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x4f4): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x508): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x51c): undefined reference to `spe_in_mbox_write'
+ppezip.o:ppezip.c:(.text+0x530): more undefined references to `spe_in_mbox_write' follow
+ppezip.o: In function `main':
+ppezip.c:(.text+0x568): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x580): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x5a0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x5b0): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x5e0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x5f8): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x640): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x664): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x688): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x6ac): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x6d0): undefined reference to `spe_context_destroy'
+ppezip.o:ppezip.c:(.text+0x6f4): more undefined references to `spe_context_destroy' follow
+ppezip.o: In function `main':
+ppezip.c:(.text+0x994): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0xb38): undefined reference to `spe_in_mbox_write'
+ppezip.o: In function `ppu_pthread_function':
+ppezip.c:(.text+0xbcc): undefined reference to `spe_context_run'
+collect2: ld returned 1 exit status
+make: *** [ppezip] Error 1
+make[1]: Entering directory `/home/dthigpe/prototype/myCode/czip/source/spu'
+make[1]: Nothing to be done for `all'.
+make[1]: Leaving directory `/home/dthigpe/prototype/myCode/czip/source/spu'
+/usr/bin/ppu32-gcc -o ppezip  adler32.o compress.o crc32.o deflate.o ppezip.o trees.o zutil.o      -L/home/dthigpe/prototype/sysroot/usr/lib -m32 -Wl,-m,elf32ppc -R/opt/ibm/cell-sdk/prototype/sysroot/usr/lib ../spu/mypigz15.a -lspe
+ppezip.o: In function `main':
+ppezip.c:(.text+0x2bc): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x2dc): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x318): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x330): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x368): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x380): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x3b8): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x3d0): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x408): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x420): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x454): undefined reference to `spe_context_create'
+ppezip.c:(.text+0x468): undefined reference to `spe_program_load'
+ppezip.c:(.text+0x4cc): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x4e0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x4f4): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x508): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x51c): undefined reference to `spe_in_mbox_write'
+ppezip.o:ppezip.c:(.text+0x530): more undefined references to `spe_in_mbox_write' follow
+ppezip.o: In function `main':
+ppezip.c:(.text+0x568): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x580): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x5a0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x5b0): undefined reference to `spe_out_mbox_read'
+ppezip.c:(.text+0x5e0): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x5f8): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0x640): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x664): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x688): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x6ac): undefined reference to `spe_context_destroy'
+ppezip.c:(.text+0x6d0): undefined reference to `spe_context_destroy'
+ppezip.o:ppezip.c:(.text+0x6f4): more undefined references to `spe_context_destroy' follow
+ppezip.o: In function `main':
+ppezip.c:(.text+0x994): undefined reference to `spe_in_mbox_write'
+ppezip.c:(.text+0xb38): undefined reference to `spe_in_mbox_write'
+ppezip.o: In function `ppu_pthread_function':
+ppezip.c:(.text+0xbcc): undefined reference to `spe_context_run'
+collect2: ld returned 1 exit status
+make: *** [ppezip] Error 1
+make[1]: Entering directory `/home/dthigpe/prototype/myCode/czip/source/spu'
+make[1]: Nothing to be done for `all'.
+make[1]: Leaving directory `/home/dthigpe/prototype/myCode/czip/source/spu'
+/usr/bin/ppu32-gcc -o ppezip  adler32.o compress.o crc32.o deflate.o ppezip.o trees.o zutil.o      -L/home/dthigpe/prototype/sysroot/usr/lib -m32 -Wl,-m,elf32ppc -R/opt/ibm/cell-sdk/prototype/sysroot/usr/lib ../spu/mypigz15.a -lspe
